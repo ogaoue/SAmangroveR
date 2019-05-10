@@ -1,0 +1,404 @@
+### Mangrove dynamics under multiple stressors in South Africa
+### July 8, 2017
+### Orou Gaoue and Kowiyou Yessoufou
+### email: ogaoue@utk.edu 
+
+### Goal: The goal of this script is to simulate the effects of size-specific harvest on the resilience of mangrove species in South Africa based on existing transition population matrices and use age-from stage modeling to investigate the role of aging in the patterns of response to harvest.
+
+### Data: Matrices for three mangrove species in Eastern Cape, built from data in Anusha Rajkaran and Janine B. Adams (2012). The Effect of Harvesting on Mangrove Forest Structure and the Use of Matrix Modelling to Determine Sustainable Harvesting Practices in South Africa, Sustainable Forest Management - Current Research, Julio J. Diez (Ed.), ISBN: 978-953-51-0621-0, InTech.
+
+## Avicenia marina
+avic<-matrix(c(0.6, 0, 0, 0.5, 0.5, 0.2, 0.8, 0, 0, 0, 0, 0.1, 0.9, 0, 0, 0, 0, 0.1, 0.9, 0, 0, 0, 0, 0.1, 0.9), 5,5, byrow=T)
+
+## Bruguiera gymnorrhiza
+brug<-matrix(c(0.79, 0.16, 0.16, 0.33, 0.33, 0.08, 0.8, 0, 0, 0, 0, 0.08, 0.88, 0, 0, 0, 0, 0.12, 0.98, 0, 0, 0, 0, 0.02, 0.9), 5,5, byrow = T)
+
+## Rhizophora mucronata
+rhiz<-matrix(c(0.6, 0.16, 0.16, 0.33, 0.33, 0.3, 0.88, 0, 0, 0, 0, 0.07, 0.9, 0, 0, 0, 0, 0.1, 0.97, 0, 0, 0, 0, 0.03, 0.9), 5,5, byrow = T)
+
+###### A. Direct analysis of population growth rates and elasticities analysis
+library(popbio) ## loading the package popbio
+
+e.avic<-eigen.analysis(avic) ## Avicenia
+e.brug<-eigen.analysis(brug)  ## Bruguiera
+e.rhiz<-eigen.analysis(rhiz) ## Rhizophora
+
+## Comparative analysis of SSD
+a.ssd<-e.avic$stable.stage
+b.ssd<-e.brug$stable.stage
+r.ssd<-e.rhiz$stable.stage
+
+## Comparative analsyis of RV
+a.rv<-e.avic$repro.value
+b.rv<-e.brug$repro.value
+r.rv<-e.rhiz$repro.value
+
+## sythesis of SSD and RV
+ssd<-rbind(a.ssd, b.ssd, r.ssd)
+rv<-rbind(a.rv, b.rv, r.rv)
+
+## adding life stage names for the figure
+stages<-c("S1", "S2", "S3", "S4", "S5")
+colnames(ssd)<-stages
+colnames(rv)<-stages
+
+## Figure 1: SSD and RV *********************************
+# dev.off()
+op<-par(mfrow=c(1,2), pty="s", las=1)
+## Fig1a - SSD
+plot(ssd[1,], type="l", col="#0073C2FF", lwd=2, ylim=c(0,0.5), xlab="Life stages", ylab="Proportion at equilibrium", xaxt = 'n')
+axis(1, at=1:5, labels=stages)
+points(ssd[2,], type="l", col="#EFC000FF", lwd=2)
+points(ssd[3,], type="l", col="#868686FF", lwd=2)
+mtext("(a)", side=3, adj=0)
+legend(2.0, 0.53, c(expression(italic("Bruguiera")), expression(italic("Rhizophora")), expression(italic("Avicennia"))), col=c("#EFC000FF", "#868686FF", "#0073C2FF"), lty=c(1,1,1), lwd=c(2, 2, 2), bty="n")
+
+## Fig1b -- RV
+plot(rv[1,], type="l", col="#0073C2FF", lwd=2, ylim=c(0,7), xlab="Life stages", ylab="Reproductive values",  xaxt = 'n')
+axis(1, at=1:5, labels=stages)
+points(rv[2,], type="l", col="#EFC000FF", lwd=2)
+points(rv[3,], type="l", col="#868686FF", lwd=2)
+mtext("(b)", side=3, adj=0)
+par(op)
+
+
+######### Elasticity analysis  ##################################
+## source("/Users/ogaoue/Dropbox/PROJECTS/Mangrove South Africa/R Scripts/elast.R")
+## Let's use the function below to get the summed elasticities for each demographic processes (stasis, growth, shrinkage, fertility)
+
+elast<-function(MAT, fc){  ### give the function your matrix "Mat" and a vector for your fertility column "fc" (e.g., fc<-5:8 means your fertility elements are from column 5 to 8)
+  ##*** M<-calathea$pooled ## THis is our matrix: CHANGE this "calathea$pooled" to yours ***
+  library(popbio)
+  aa<-eigen.analysis(MAT)
+  ## aa$elasticities
+  
+  ## diagonal of the matrix = STASIS
+  dd<-diag(aa$elasticities)
+  se<-sum(dd) ## elasticity to stasis
+  #se
+  
+  ## fertility
+  ##*** fc<-5:8 ## your fertility column ** make sure you change this to YOURS or you are..**
+  fd<-aa$elasticities[1,fc]
+  fe<-sum(fd) ## sum of elasticity for fertility
+  #fe
+  
+  ### Upper diagonal - Retrogression
+  ud<-aa$elasticities[upper.tri(aa$elasticities)]
+  ## the upper diagonal includes the fertility. so to get the shringage only we need to substract the fertility elasticities from the sum of the the upper diagonal
+  re<-sum(ud)-sum(fd) ## elasticity to retrogression
+  #re
+  
+  ## lower diagonal - Growth
+  ld<-aa$elasticities[lower.tri(aa$elasticities)]
+  ge<-sum(ld)
+  #ge
+  
+  return(c("stasis"=se, "growth"=ge, "shrinkage"=se, "fertility"=fe))
+}
+
+## ## elasticity analysis for each species
+elast(avic, 4:5)
+elast(brug, 2:5)
+elast(rhiz, 2:5)
+
+## Comparative analysis of elasticity
+re<-e.rhiz$elasticities
+be<-e.brug$elasticities
+ae<-e.avic$elasticities
+
+## Rhizophora
+re.sta<-c(re[1,1], re[2,2], re[3,3], re[4,4], re[5,5])
+re.gro<-c(re[2,1], re[3,2], re[4,3], re[5,4],0)
+re.fer<-c(0, re[1,2], re[1,3], re[1,4], re[1,5])
+
+elast.re<-rbind(re.sta,re.gro,re.fer)
+rownames(elast.re)<-c("Stasis", "Growth", "Fertility")
+
+## Brugeria
+be.sta<-c(be[1,1], be[2,2], be[3,3], be[4,4], be[5,5])
+be.gro<-c(be[2,1], be[3,2], be[4,3], be[5,4],0)
+be.fer<-c(0, be[1,2], be[1,3], be[1,4], be[1,5])
+
+elast.be<-rbind(be.sta,be.gro,be.fer)
+
+## Avicennia
+ae.sta<-c(ae[1,1], ae[2,2], ae[3,3], ae[4,4], ae[5,5])
+ae.gro<-c(ae[2,1], ae[3,2], ae[4,3], ae[5,4],0)
+ae.fer<-c(0, ae[1,2], ae[1,3], ae[1,4], ae[1,5])
+
+elast.ae<-rbind(ae.sta,ae.gro,ae.fer)
+
+lifestages<-c("S1", "S2", "S3", "S4", "S5")
+
+### Figure 2
+op<-par(mfrow=c(2,3), pty="s", las=1, tcl=-0.4, mgp=c(2,0.6,0))
+## (a) Rhizophora
+par(mar=c(2,3.5,3,0)) ## outer margin (bottom, left, top, right)
+barplot(elast.re, beside=TRUE, col=c("#0073C2FF", "#EFC000FF", "#868686FF"), ylim=c(0,0.50), names.arg=lifestages, axis.lty=1, cex.axis=1.2, legend.text = c("Stasis", "Growth", "Fertility"), args.legend = list(x="topright", cex=1.2, bty="n"),  cex.lab=1.5, xlab="Life stages", ylab=expression(paste("Elasticity of ", lambda))); abline(h=0, lty=2); box()
+mtext(expression(paste("(a) ", italic("Rhizophora"))), side=3, adj=0)
+
+## (b) Brugeria
+par(mar=c(2.5,3.5,3.5,0)) ## outer margin (bottom, left, top, right)
+barplot(elast.be, beside=TRUE, col=c("#0073C2FF", "#EFC000FF", "#868686FF"), ylim=c(0,0.50), names.arg=lifestages, axis.lty=1,  cex.axis=1.2,cex.lab=1.5, xlab="Life stages", ylab=""); abline(h=0, lty=2); box()
+mtext(expression(paste("(b) ", italic("Bruguiera"))), side=3, adj=0)
+
+## (c) Avicennia
+#par(mar=c(4.5,5.5,1.5,0.5)) ## outer margin (bottom, left, top, right)
+par(mar=c(2.5,3,3.5,1)) ## outer margin (bottom, left, top, right)
+barplot(elast.ae, beside=TRUE, col=c("#0073C2FF", "#EFC000FF", "#868686FF"), ylim=c(0,0.50), names.arg=lifestages, axis.lty=1, cex.axis=1.2,cex.lab=1.5, xlab="Life stages", ylab=""); abline(h=0, lty=2); box()
+mtext(expression(paste("(c) ", italic("Avicennia"))), side=3, adj=0)
+par(op)
+
+ ######## B. Simulations various scenario  ###############
+
+###### 1) Simulating harvest (reduction in stasis) in Avicenia
+## Scenario 1: simulating harvesting the largest size class S5 (>351cm height)
+rd<-c(0.10, 0.25, 0.50, 0.60, 0.70, 0.80, 0.90)
+arr.avic.s5<-arr.avic.s4<-arr.avic.s3<-arr.avic.s2<-arr.avic.s1<-array(avic, c(5,5,7))
+lam.avic.s5<-lam.avic.s4<-lam.avic.s3<-lam.avic.s2<-lam.avic.s1<-matrix(NA,1,7)
+
+for(i in 1:7){
+  ## simulating harvest of stage 5
+  arr.avic.s5[5,5,i]<-rd[i]
+  lam.avic.s5[i]<-eigen.analysis(arr.avic.s5[,,i])$lambda
+  
+  ## simulating harvest of stage 4
+  arr.avic.s4[4,4,i]<-rd[i]
+  lam.avic.s4[i]<-eigen.analysis(arr.avic.s4[,,i])$lambda
+  
+  ## simulating harvest of stage 3
+  arr.avic.s3[3,3,i]<-rd[i]
+  lam.avic.s3[i]<-eigen.analysis(arr.avic.s3[,,i])$lambda
+  
+  ## simulating harvest of stage 2
+  arr.avic.s2[2,2,i]<-rd[i]
+  lam.avic.s2[i]<-eigen.analysis(arr.avic.s2[,,i])$lambda
+  
+  ## simulating harvest of stage 1
+  arr.avic.s1[1,1,i]<-rd[i]
+  lam.avic.s1[i]<-eigen.analysis(arr.avic.s1[,,i])$lambda
+}
+
+###### 2) Simulating harvest (reduction in stasis) in Bruguiera
+## Scenario 1: simulating harvesting the largest size class S5 (>351cm height)
+rd<-c(0.10, 0.25, 0.50, 0.60, 0.70, 0.80, 0.90)
+arr.brug.s5<-arr.brug.s4<-arr.brug.s3<-arr.brug.s2<-arr.brug.s1<-array(brug, c(5,5,7))
+lam.brug.s5<-lam.brug.s4<-lam.brug.s3<-lam.brug.s2<-lam.brug.s1<-matrix(NA,1,7)
+
+for(i in 1:7){
+  ## simulating harvest of stage 5
+  arr.brug.s5[5,5,i]<-rd[i]
+  lam.brug.s5[i]<-eigen.analysis(arr.brug.s5[,,i])$lambda
+  
+  ## simulating harvest of stage 4
+  arr.brug.s4[4,4,i]<-rd[i]
+  lam.brug.s4[i]<-eigen.analysis(arr.brug.s4[,,i])$lambda
+  
+  ## simulating harvest of stage 3
+  arr.brug.s3[3,3,i]<-rd[i]
+  lam.brug.s3[i]<-eigen.analysis(arr.brug.s3[,,i])$lambda
+  
+  ## simulating harvest of stage 2
+  arr.brug.s2[2,2,i]<-rd[i]
+  lam.brug.s2[i]<-eigen.analysis(arr.brug.s2[,,i])$lambda
+  
+  ## simulating harvest of stage 1
+  arr.brug.s1[1,1,i]<-rd[i]
+  lam.brug.s1[i]<-eigen.analysis(arr.brug.s1[,,i])$lambda
+}
+
+###### 3) Simulating harvest (reduction in stasis) in Rhizophora
+## Scenario 1: simulating harvesting the largest size class S5 (>351cm height)
+rd<-c(0.10, 0.25, 0.50, 0.60, 0.70, 0.80, 0.90)
+arr.rhiz.s5<-arr.rhiz.s4<-arr.rhiz.s3<-arr.rhiz.s2<-arr.rhiz.s1<-array(rhiz, c(5,5,7))
+lam.rhiz.s5<-lam.rhiz.s4<-lam.rhiz.s3<-lam.rhiz.s2<-lam.rhiz.s1<-matrix(NA,1,7)
+
+for(i in 1:7){
+  ## simulating harvest of stage 5
+  arr.rhiz.s5[5,5,i]<-rd[i]
+  lam.rhiz.s5[i]<-eigen.analysis(arr.rhiz.s5[,,i])$lambda
+  
+  ## simulating harvest of stage 4
+  arr.rhiz.s4[4,4,i]<-rd[i]
+  lam.rhiz.s4[i]<-eigen.analysis(arr.rhiz.s4[,,i])$lambda
+  
+  ## simulating harvest of stage 3
+  arr.rhiz.s3[3,3,i]<-rd[i]
+  lam.rhiz.s3[i]<-eigen.analysis(arr.rhiz.s3[,,i])$lambda
+  
+  ## simulating harvest of stage 2
+  arr.rhiz.s2[2,2,i]<-rd[i]
+  lam.rhiz.s2[i]<-eigen.analysis(arr.rhiz.s2[,,i])$lambda
+  
+  ## simulating harvest of stage 1
+  arr.rhiz.s1[1,1,i]<-rd[i]
+  lam.rhiz.s1[i]<-eigen.analysis(arr.rhiz.s1[,,i])$lambda
+}
+
+### Figure 2 **********************************
+hi<-1-rd
+
+dev.off()
+op<-par(mfrow=c(2,2), las=1)
+## Rhizophora mucronata 
+par(mar=c(2.5,5.5,3.5,0.5)) ## outer margin (bottom, left, top, right)
+plot(c(lam.rhiz.s5)~hi, ylim=c(0.95,1.20), lwd=1.5, col="#0073C2FF", type="l", xlab="", ylab="") ## S5
+points(c(lam.rhiz.s4)~hi, lwd=1.5, col="#EFC000FF", type="l") ## S4
+points(c(lam.rhiz.s3)~hi, lwd=1.5, col="#868686FF", type="l") ## S3 ***
+points(c(lam.rhiz.s2)~hi, lwd=1.5, col="#CD534CFF", type="l") ## S2 ***
+points(c(lam.rhiz.s1)~hi, lwd=1.5, col="#FF7F0EFF", type="l")  ## S1
+abline(h=1, lty=2, lwd=0.5)
+mtext(expression(paste("(a) ", italic("Rhizophora"))), side=3, adj=0)
+
+## Bruguiera gymnorrhiza 
+par(mar=c(2.5,4,3.5,2)) ## outer margin (bottom, left, top, right)
+plot(c(lam.brug.s5)~hi,ylim=c(0.95,1.20),lwd=1.5,col="#0073C2FF",type="l",xlab="",ylab="") ## S5
+points(c(lam.brug.s4)~hi, lwd=1.5, col="#EFC000FF", type="l") ## S4
+points(c(lam.brug.s3)~hi, lwd=1.5, col="#868686FF", type="l") ## S3 ***
+points(c(lam.brug.s2)~hi, lwd=1.5, col="#CD534CFF", type="l") ## S2 ***
+points(c(lam.brug.s1)~hi, lwd=1.5, col="#FF7F0EFF", type="l")  ## S1
+abline(h=1, lty=2, lwd=0.5)
+mtext(expression(paste("(b) ", italic("Bruguiera"))), side=3, adj=0)
+
+## Avicenia marina 
+par(mar=c(4,5.5,2,0.5)) ## outer margin (bottom, left, top, right)
+plot(c(lam.avic.s5)~hi, ylim=c(0.95,1.20), lwd=1.5, col="#0073C2FF", type="l", xlab="Stem harvest rate (%)", cex.lab=1.3, ylab="") ## S5
+points(c(lam.avic.s4)~hi, lwd=1.5, col="#EFC000FF", type="l") ## S4
+points(c(lam.avic.s3)~hi, lwd=1.5, col="#868686FF", type="l") ## S3 ***
+points(c(lam.avic.s2)~hi, lwd=1.5, col="#CD534CFF", type="l") ## S2 ***
+points(c(lam.avic.s1)~hi, lwd=1.5, col="#FF7F0EFF", type="l")  ## S1
+legend(0.35,1.20, c("Harvesting S5","Harvesting S4", "Harvesting S3", "Harvesting S2", "Harvesting S1"), col=c("#0073C2FF", "#EFC000FF", "#868686FF","#CD534CFF", "#FF7F0EFF"), bty="n", lwd=c(1.5,1.5,1.5,1.5,1.5))
+abline(h=1, lty=2, lwd=0.5)
+mtext(expression(paste("(c) ", italic("Avicennia"))), side=3, adj=0)
+
+par(mar=c(2.5,4,2,1)) ## outer margin (bottom, left, top, right)
+plot(NULL)
+
+par(oma=c(2.5, 5.5, 1.5, 0), mgp=c(3,0.6,0)) ## outer margin (bottom, left, top, right)
+title(xlab="", ylab=expression(paste("Population growth rate, ", lambda)), outer=T, cex.lab=1.3)
+par(op)
+
+
+####### C. Demographic Sensecence analysis #########################
+
+## Loading the packages that I need: "popbio" to be able to use the function "splitA" to split the matrix A into Q and R, and package 'Biodem", has function mtx.exp for matrix exponentiation
+
+library(popbio)
+library(Biodem) 
+library(plotrix)
+
+## Spliting the matrices A= Q + R and keeping Q
+q_avic<-splitA(avic, r=1, c=-1)$T
+q_brug<-splitA(brug, r=1, c=-1)$T
+q_rhiz<-splitA(rhiz, r=1, c=-1)$T
+
+## Function "senecs", that takes "q" matrix, maximum age "maxage" as parameters and yield survivorship lx, mortality Ux, mu, plateau.
+
+nstages<-5
+maxage<-100 # set the number of ages to consider
+ages<-1:maxage # a sequence of ages from 1 to maxage
+
+mortality<-function(q, maxage){
+  ## q<-q_avic
+  nstages<-nrow(q) # number of stages of the matrix q
+  
+  ## Create matrix to receive the outputs
+  Nzero<-matrix(0, nstages, 1)
+  Nzero[1,1]<-1
+  Nx<-matrix(0, nstages, maxage)
+  Qx<-array(0, dim=c(nstages, nstages, maxage))
+  
+  ## SURVIVORSHIP Lx
+  for (x in 1:maxage){
+    Nx[,x]<-mtx.exp(q,x)%*%Nzero # pop vector at each age
+    Qx[,,x]<-mtx.exp(q,x) # The powers of Q gives the same info
+  }
+  
+  Nx2<-drop(Qx[,1,]) # squeeze() in Matlab: all rows, col 1, all age
+  lx<-apply(Nx, 2, sum) # Survivorship
+  
+  ## Find the stage structure at each age as a proportion
+  Ux<-matrix(0, nstages, maxage)
+  for (x in 1:maxage){
+    Ux[,x]<-Nx[,x]/lx[x]
+  }
+  
+  ## AGE SPECIFIC MORTALITY (TRAJECTORY)
+  lxplus1<-lx[2:maxage] # or lx[-1]
+  mu<-log(lx[1:(maxage-1)]) - log(lxplus1)
+  plateau<- - log(max(abs(eigen(q)$values)))  # mortality plateau: I used the abs of the max eigenvalue, b/c they are complex numbers
+  
+  ## To get the distribution of age at death
+  deaths<-lx[1:(maxage -1)] - lxplus1
+  deaths<-deaths/sum(deaths)
+  
+  ## To get the one period survival
+  oneperiodsurvival<-apply(q, 2, sum) # age-specific survival
+  
+  return(list(lx=lx, mu=mu, plateau=plateau, deaths=deaths, Ux=Ux))
+  
+} ################# end of function
+
+m.avic<-mortality(q_avic, maxage)
+m.brug<-mortality(q_brug, maxage)
+m.rhiz<-mortality(q_rhiz, maxage)
+
+## FIGURE 1.1.: Distribution of age specific mortality and structures *****
+# dev.off()
+
+op<-par(mfrow=c(3,2), las=1)
+## (a)
+#par(mar=c(3,5,3,1))
+par(mai=c(.35, .9, .35, 0.25)) ## c(bottom, left, top, right)
+plot(ages[-maxage], m.rhiz$mu, xlab="Age (yr)", ylab="", ylim=c(0,0.20), type="l",  lwd=1.5, col="dodgerblue2", cex=3)
+mtext(expression(paste("(a) ", italic("Rhizophora"))), side=3, adj=0)
+
+par(mai=c(.35, .65, .35, 0.45)) ## c(bottom, left, top, right)
+#plot(NULL)
+## (d)
+stackpoly(t(m.rhiz$Ux), stack=TRUE, xlab="", ylab="", cex.lab=1.75, cex=4); 
+mtext(expression(paste("(d) ", italic("Rhizophora"))), side=3, adj=0)
+
+#par(mar=c(3,5,3,1))
+## (b)
+par(mai=c(.5, .9, .2, 0.25)) ## c(bottom, left, top, right)
+plot(ages[-maxage], m.brug$mu, type="l", ylim=c(0,0.20), xlab="", ylab=expression(paste("Mortality rate, ",mu(x))), lwd=1.5, cex.lab=1.75, col="orchid2", cex=3)
+mtext(expression(paste("(b) ", italic("Bruguiera"))), side=3, adj=0)
+
+par(mai=c(.5, .65, .2, 0.45)) ## c(bottom, left, top, right)
+#plot(NULL)
+## (e)
+stackpoly(t(m.brug$Ux), stack=TRUE, xlab="", ylab="Proportion of individuals", cex.lab=1.75, cex=4); 
+mtext(expression(paste("(e) ", italic("Bruguiera"))), side=3, adj=0)
+
+#par(mar=c(3,5,2.5,1))
+## (c)
+par(mai=c(.6, .9, .05, 0.25)) ## c(bottom, left, top, right)
+plot(ages[-maxage], m.avic$mu, type="l", ylab="", xlab="Age (yr)", ylim=c(0,0.20), lwd=1.5, col="mediumseagreen", cex.lab=1.2, las=1)
+mtext(expression(paste("(c) ", italic("Avicennia"))), side=3, adj=0)
+
+par(mai=c(.6, .65, .05, 0.45)) ## c(bottom, left, top, right)
+#plot(NULL)
+## (f)
+stackpoly(t(m.avic$Ux), stack=TRUE, xlab="Age (yr)", ylab="", cex.lab=1.2, cex=4);
+mtext(expression(paste("(f) ", italic("Avicennia"))), side=3, adj=0)
+
+#par(oma=c(3.5, 5, 1, 0)) ## outer margin (bottom, left, top, right)
+#title(xlab="", ylab="", outer=T, cex.lab=1.75)
+par(op)
+
+
+
+## FIGURE 4 (Alternative) : Age specific mortality
+dev.off()
+plot(ages[-maxage], m.avic$mu, type="l", ylab=expression(paste("Mortality, ",italic(mu(x)))), xlab="Age (yr)", ylim=c(0,0.20), lwd=1.5, col="dodgerblue4", cex.lab=1.2, las=1)
+
+legend(70,0.20, c("Avicenia","Bruguiera", "Rhizophora"), col=c( "dodgerblue4", "mediumseagreen","chocolate2"), bty="n", lwd=c(1.5,1.5,1.5))
+
+points(ages[-maxage], m.brug$mu, type="l", lwd=1.5, col="mediumseagreen", cex=3)
+points(ages[-maxage], m.rhiz$mu, type="l",  lwd=1.5, col="chocolate2", cex=3)
+
+#abline(h=m.avic$plateau, lty=2, lwd=0.8, cex=1); text(20, (1.2*m.avic$plateau), expression(paste("- log(", lambda,")")))
+
+#abline(h=m.brug$plateau, lty=2, lwd=0.8, cex=1); mtext("(c)", side=3, adj=0)
